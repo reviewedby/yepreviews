@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Yep — Turn private feedback into growth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #fafafb; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: #0e1220; }
+  button { font-family: inherit; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+  .scroll { height: 100vh; overflow-y: auto; scroll-behavior: smooth; }
+  @media (max-width: 1100px) {
+    .hero-grid { grid-template-columns: 1fr !important; }
+    .hero-grid > div:last-child { justify-self: center; }
+  }
+
+  /* Tweaks */
+  .tweaks-panel {
+    position: fixed; right: 20px; bottom: 20px; width: 280px; background: #fff;
+    border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    padding: 16px; z-index: 1000; display: none;
+  }
+  .tweaks-panel.open { display: block; }
+  .tweaks-panel h3 { margin: 0 0 12px 0; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .tweaks-panel .label { font-size: 10px; font-weight: 700; color: #5b5f6e; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
+  .tweaks-panel .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .tweaks-panel button.chip {
+    padding: 6px 10px; border-radius: 999px;
+    border: 1.5px solid rgba(14,18,32,0.12); background: #fff;
+    font-size: 12px; font-weight: 500; color: #2a2e3d; cursor: pointer;
+  }
+  .tweaks-panel button.chip.active { border-color: #5a5af0; background: #eeeefe; color: #5a5af0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="hifi/hifi-tokens.jsx"></script>
+<script type="text/babel" src="landing/landing-data.jsx"></script>
+<script type="text/babel" src="landing/landing-sections.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "heroVariant": "learn",
+  "industry": "service"
+}/*EDITMODE-END*/;
+
+function useTweaks() {
+  const [s, setS] = React.useState(TWEAK_DEFAULTS);
+  const set = (k, v) => {
+    const next = { ...s, [k]: v };
+    setS(next);
+    try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: v } }, '*'); } catch {}
+  };
+  return [s, set];
+}
+
+function Nav() {
+  return (
+    <nav style={{
+      position: 'sticky', top: 0, zIndex: 50,
+      padding: '16px 64px', background: 'rgba(14,18,32,0.85)',
+      backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+      display: 'flex', alignItems: 'center', gap: 32,
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
+    }}>
+      <YepMark size={20} color="#fff" dot={T.accent}/>
+      <div style={{ display: 'flex', gap: 24, fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
+        <span style={{ cursor: 'pointer' }}>How it works</span>
+        <span style={{ cursor: 'pointer' }}>Customers</span>
+        <span style={{ cursor: 'pointer' }}>Pricing</span>
+      </div>
+      <div style={{ flex: 1 }}/>
+      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>Sign in</span>
+      <button style={{
+        padding: '8px 16px', background: '#fff', color: T.ink,
+        border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+      }}>Start free</button>
+    </nav>
+  );
+}
+
+function Hero({ variant, industry }) {
+  const v = HERO_VARIANTS[variant];
+  const ind = INDUSTRIES[industry];
+  return (
+    <section style={{
+      padding: '72px 64px 96px',
+      background: `radial-gradient(ellipse at 80% 0%, rgba(90,90,240,0.22), transparent 50%), radial-gradient(ellipse at 10% 100%, rgba(90,90,240,0.12), transparent 50%), ${T.ink}`,
+      color: '#fff', position: 'relative', overflow: 'hidden',
+    }}>
+      <div className="hero-grid" style={{
+        maxWidth: 1200, margin: '0 auto',
+        display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px',
+        gap: 48, alignItems: 'center',
+      }}>
+        <div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '6px 14px', borderRadius: 999,
+            background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+            fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.85)',
+            marginBottom: 28,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: T.good, boxShadow: `0 0 0 3px ${T.good}33` }}/>
+            {v.kicker}
+          </div>
+          <h1 style={{
+            fontSize: 'clamp(48px, 6.2vw, 84px)', fontWeight: 700,
+            letterSpacing: '-0.045em', lineHeight: 0.98,
+            margin: 0, marginBottom: 28, textWrap: 'balance',
+          }}>
+            {v.title.map((line, i) => (
+              <span key={i} style={{
+                display: 'block',
+                color: i === v.title.length - 1 ? T.accent : '#fff',
+              }}>{line}</span>
+            ))}
+          </h1>
+          <div style={{
+            fontSize: 19, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5,
+            maxWidth: 520, marginBottom: 36, textWrap: 'pretty',
+          }}>{v.sub}</div>
+
+          <div style={{ display: 'flex', gap: 12, marginBottom: 36 }}>
+            <button style={{
+              padding: '14px 22px', background: '#fff', color: T.ink,
+              border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+            }}>{v.ctaPrimary} →</button>
+            <button style={{
+              padding: '14px 22px', background: 'transparent', color: '#fff',
+              border: '1.5px solid rgba(255,255,255,0.2)', borderRadius: 12,
+              fontSize: 15, fontWeight: 500, cursor: 'pointer',
+            }}>{v.ctaSecondary}</button>
+          </div>
+
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 18,
+            fontSize: 12, color: 'rgba(255,255,255,0.5)',
+          }}>
+            <div style={{ display: 'flex', gap: 2 }}>
+              {[1,2,3,4,5].map(i => (
+                <svg key={i} width="14" height="14" viewBox="0 0 24 24">
+                  <path d="M12 2l2.9 6.3 6.9.7-5.2 4.7 1.5 6.8L12 17l-6.1 3.5 1.5-6.8L2.2 9l6.9-.7L12 2z" fill={T.gold}/>
+                </svg>
+              ))}
+            </div>
+            <span>4.9 on Capterra · 380+ reviews</span>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <span>No credit card required</span>
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex', justifyContent: 'center',
+          animation: 'floaty 4s ease-in-out infinite',
+        }}>
+          <LiveDemo industry={industry}/>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function IndustrySwitcher({ industry, setIndustry }) {
+  return (
+    <div style={{
+      padding: '24px 64px', background: '#fff',
+      borderBottom: `1px solid ${T.ink10}`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      gap: 10, flexWrap: 'wrap',
+    }}>
+      <span style={{ fontSize: 12, color: T.ink60, fontWeight: 500, marginRight: 4 }}>
+        Built for:
+      </span>
+      {Object.entries(INDUSTRIES).map(([id, ind]) => (
+        <button key={id} onClick={() => setIndustry(id)} style={{
+          padding: '8px 14px', borderRadius: 999,
+          border: `1.5px solid ${industry === id ? T.ink : T.ink10}`,
+          background: industry === id ? T.ink : '#fff',
+          color: industry === id ? '#fff' : T.ink80,
+          fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}>
+          <span>{ind.emoji}</span>
+          {ind.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TweaksPanel({ tweaks, setTweak, open, onClose }) {
+  return (
+    <div className={`tweaks-panel ${open ? 'open' : ''}`}>
+      <h3>
+        <span style={{ fontSize: 18 }}>⚙</span> Tweaks
+        <span style={{ marginLeft: 'auto', cursor: 'pointer', color: '#9094a1', fontSize: 22, lineHeight: 1 }} onClick={onClose}>×</span>
+      </h3>
+      <div className="label">Hero copy variant</div>
+      <div className="row">
+        {Object.entries(HERO_VARIANTS).map(([k, v]) => (
+          <button key={k} className={`chip ${tweaks.heroVariant === k ? 'active' : ''}`} onClick={() => setTweak('heroVariant', k)}>
+            {k === 'learn' ? 'Learn' : k === 'loop' ? 'Loop' : 'Mentor'}
+          </button>
+        ))}
+      </div>
+      <div className="label">Industry</div>
+      <div className="row">
+        {Object.entries(INDUSTRIES).map(([k, v]) => (
+          <button key={k} className={`chip ${tweaks.industry === k ? 'active' : ''}`} onClick={() => setTweak('industry', k)}>
+            {v.emoji} {v.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [tweaks, setTweak] = useTweaks();
+  const [panelOpen, setPanelOpen] = React.useState(false);
+  React.useEffect(() => {
+    const onMsg = e => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === '__activate_edit_mode') setPanelOpen(true);
+      else if (e.data.type === '__deactivate_edit_mode') setPanelOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch {}
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  return (
+    <>
+      <div className="scroll">
+        <Nav/>
+        <Hero variant={tweaks.heroVariant} industry={tweaks.industry}/>
+        <IndustrySwitcher industry={tweaks.industry} setIndustry={v => setTweak('industry', v)}/>
+        <TrustBar/>
+        <HowItWorks/>
+        <LearningLoop/>
+        <StatsBlock/>
+        <Testimonials/>
+        <Pricing/>
+        <FinalCTA/>
+        <LandingFooter/>
+      </div>
+      <TweaksPanel tweaks={tweaks} setTweak={setTweak} open={panelOpen} onClose={() => setPanelOpen(false)}/>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

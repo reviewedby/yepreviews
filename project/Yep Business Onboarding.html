@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Yep — Business Onboarding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #0e1220; overflow: hidden; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: #0e1220; }
+  .stage {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 30% 20%, #1a1e35, #0e1220);
+  }
+  .scaler { transform-origin: center center; }
+  .app {
+    width: 1440px; height: 900px;
+    background: #fafafb; border-radius: 12px;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  .chrome {
+    height: 36px; background: #ededed; display: flex; align-items: center;
+    padding: 0 14px; gap: 8px; border-bottom: 1px solid #dcdcdc;
+  }
+  .chrome .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .chrome .url {
+    margin-left: 20px; font-size: 12px; color: #5b5f6e;
+    font-family: 'JetBrains Mono', monospace; background: #fff;
+    padding: 4px 12px; border-radius: 999px; border: 1px solid #e0e0e0;
+  }
+  .tweaks-panel {
+    position: fixed; right: 20px; bottom: 20px; width: 260px; background: #fff;
+    border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    padding: 16px; z-index: 1000; display: none;
+  }
+  .tweaks-panel.open { display: block; }
+  .tweaks-panel h3 { margin: 0 0 12px 0; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .tweaks-panel .label { font-size: 10px; font-weight: 700; color: #5b5f6e; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
+  .tweaks-panel .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .tweaks-panel button.chip {
+    padding: 6px 10px; border-radius: 999px;
+    border: 1.5px solid rgba(14,18,32,0.12); background: #fff;
+    font-size: 12px; font-weight: 500; color: #2a2e3d; cursor: pointer;
+  }
+  .tweaks-panel button.chip.active { border-color: #5a5af0; background: #eeeefe; color: #5a5af0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="hifi/hifi-tokens.jsx"></script>
+<script type="text/babel" src="dashboard/dashboard-data.jsx"></script>
+<script type="text/babel" src="posters/poster-qr.jsx"></script>
+<script type="text/babel" src="posters/poster-templates.jsx"></script>
+<script type="text/babel" src="onboarding/onboarding-data.jsx"></script>
+<script type="text/babel" src="onboarding/onboarding-steps.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "stepIndex": 5,
+  "preset": "blank"
+}/*EDITMODE-END*/;
+
+const STEPS = [
+  { id: 'welcome',   Component: StepWelcome,   label: 'Welcome' },
+  { id: 'basics',    Component: StepBasics,    label: 'Business' },
+  { id: 'threshold', Component: StepThreshold, label: 'Threshold' },
+  { id: 'platforms', Component: StepPlatforms, label: 'Platforms' },
+  { id: 'team',      Component: StepTeam,      label: 'Team' },
+  { id: 'finish',    Component: StepFinish,    label: 'Finish' },
+];
+
+const PRESETS = {
+  blank: { bizName: '', bizSub: '', bizType: null, threshold: 4,
+    platforms: ONB_PLATFORMS.filter(p => p.enabledByDefault).map(p => p.id), team: [] },
+  kaya: { bizName: 'Kaya Sushi', bizSub: 'Midtown', bizType: 'restaurant', threshold: 4,
+    platforms: ['google', 'yelp'], team: ONB_SAMPLE_TEAM },
+};
+
+function useTweaks() {
+  const [s, setS] = React.useState(TWEAK_DEFAULTS);
+  const set = (k, v) => {
+    const next = { ...s, [k]: v };
+    setS(next);
+    try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: v } }, '*'); } catch {}
+  };
+  return [s, set];
+}
+
+function ProgressRail({ stepIndex, onJump }) {
+  // Show steps 1..5 (skip welcome at 0 and finish at 5 visually as milestone)
+  const visible = STEPS.slice(1, 5);
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '0 4px',
+    }}>
+      {visible.map((s, i) => {
+        const idx = i + 1;
+        const done = stepIndex > idx;
+        const active = stepIndex === idx;
+        return (
+          <React.Fragment key={s.id}>
+            <div onClick={() => stepIndex > 0 && onJump(idx)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, cursor: stepIndex > 0 ? 'pointer' : 'default',
+            }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: '50%',
+                background: done ? T.good : active ? T.ink : T.ink10,
+                color: (done || active) ? '#fff' : T.ink60,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 700, fontFamily: T.mono,
+                transition: 'all 0.2s',
+              }}>
+                {done ? '✓' : idx}
+              </div>
+              <span style={{
+                fontSize: 12, fontWeight: active ? 600 : 500,
+                color: active ? T.ink : T.ink60,
+              }}>{s.label}</span>
+            </div>
+            {i < visible.length - 1 && (
+              <div style={{ width: 24, height: 1, background: done ? T.good : T.ink10 }}/>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function PreviewPane({ state, stepIndex }) {
+  // Show different preview content depending on step
+  const accent = T.accent;
+  const qrSeed = (state.bizName || 'your-biz').toLowerCase().replace(/\s+/g, '-');
+  const heading = stepIndex === 0 ? 'Preview' : 'Live preview';
+
+  return (
+    <aside style={{
+      width: 520, background: '#0e1220', color: '#fff',
+      display: 'flex', flexDirection: 'column', padding: '32px 36px',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(circle at 30% 15%, rgba(90,90,240,0.25), transparent 55%)',
+      }}/>
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+          {heading}
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, marginTop: 4 }}>
+          {stepIndex <= 1 && 'What customers will see'}
+          {stepIndex === 2 && `Redirect at ${state.threshold}+ stars`}
+          {stepIndex === 3 && 'Happy review funnel'}
+          {stepIndex === 4 && 'Per-server attribution'}
+          {stepIndex === 5 && 'Your poster, ready to print'}
+        </div>
+      </div>
+
+      {/* Phone */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
+        <div style={{
+          width: 260, height: 520, background: '#fff', borderRadius: 36,
+          padding: 10, boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 8px #2a2e3d, 0 0 0 9px #0e1220',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        }}>
+          {/* status bar */}
+          <div style={{
+            height: 22, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '0 18px 0 24px', fontSize: 11, fontWeight: 600, color: T.ink,
+          }}>
+            <span>9:41</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <span>●●●</span>
+              <span>📶</span>
+              <span>🔋</span>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, padding: '20px 18px', display: 'flex', flexDirection: 'column' }}>
+            {/* Biz header */}
+            <div style={{
+              padding: '10px 12px', background: T.paperWarm,
+              borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18,
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 6, background: T.ink,
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700,
+              }}>{(state.bizName || 'YB').slice(0, 2).toUpperCase()}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.ink, lineHeight: 1.1 }}>
+                  {state.bizName || 'Your business'}
+                </div>
+                <div style={{ fontSize: 9, color: T.ink60 }}>{state.bizSub || 'Location'}</div>
+              </div>
+            </div>
+
+            <div style={{
+              fontSize: 18, fontWeight: 700, color: T.ink,
+              letterSpacing: -0.3, lineHeight: 1.15, marginBottom: 4,
+            }}>How was your visit?</div>
+            <div style={{ fontSize: 11, color: T.ink60, marginBottom: 20 }}>Takes 20 seconds.</div>
+
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+              {[1,2,3,4,5].map(i => {
+                const meetsThreshold = i >= state.threshold;
+                const highlight = stepIndex === 2 && meetsThreshold;
+                return (
+                  <svg key={i} width="34" height="34" viewBox="0 0 24 24">
+                    <path d="M12 2l2.9 6.3 6.9.7-5.2 4.7 1.5 6.8L12 17l-6.1 3.5 1.5-6.8L2.2 9l6.9-.7L12 2z"
+                      fill={highlight ? T.gold : T.ink20}
+                      stroke={highlight ? T.gold : 'none'} strokeWidth="0.5"/>
+                  </svg>
+                );
+              })}
+            </div>
+
+            {stepIndex === 2 && (
+              <div style={{
+                marginTop: 14, padding: '8px 10px', background: T.accentSoft,
+                borderRadius: 8, fontSize: 10, color: T.accentDark, textAlign: 'center',
+              }}>
+                {state.threshold}+ stars → public platforms · below → private feedback
+              </div>
+            )}
+
+            {stepIndex === 3 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 10, color: T.ink60, textAlign: 'center', marginBottom: 8 }}>
+                  Happy? Post where it matters:
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {state.platforms.slice(0, 3).map(pid => {
+                    const p = ONB_PLATFORMS.find(x => x.id === pid);
+                    if (!p) return null;
+                    return (
+                      <div key={pid} style={{
+                        padding: '8px 10px', border: `1.5px solid ${p.color}`,
+                        borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 600, color: T.ink,
+                      }}>
+                        <div style={{ width: 16, height: 16, borderRadius: 4, background: p.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>{p.name[0]}</div>
+                        <span>{p.name}</span>
+                      </div>
+                    );
+                  })}
+                  {state.platforms.length > 3 && (
+                    <div style={{ fontSize: 10, color: T.ink40, textAlign: 'center', marginTop: 2 }}>+ {state.platforms.length - 3} more</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {stepIndex === 4 && state.team.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 10, color: T.ink60, textAlign: 'center', marginBottom: 10 }}>Served by:</div>
+                <div style={{
+                  padding: '10px 12px', background: T.paperWarm,
+                  borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <Avatar seed={state.team[0].name} size={28} color={state.team[0].color}/>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: T.ink, lineHeight: 1.1 }}>{state.team[0].name}</div>
+                    <div style={{ fontSize: 10, color: T.ink60 }}>{state.team[0].role}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {stepIndex === 5 && (
+              <div style={{ marginTop: 20, textAlign: 'center' }}>
+                <div style={{ display: 'inline-block', padding: 8, background: '#fff', borderRadius: 10, boxShadow: T.shadowSm }}>
+                  <FakeQR seed={qrSeed} size={110} color={T.ink}/>
+                </div>
+                <div style={{ fontSize: 10, color: T.ink60, marginTop: 8, fontFamily: T.mono }}>yep.to/{qrSeed}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        position: 'relative', zIndex: 1, marginTop: 20,
+        padding: '12px 14px', background: 'rgba(255,255,255,0.05)',
+        borderRadius: 10, fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5,
+      }}>
+        {stepIndex === 0 && 'As you fill out the next steps, this phone shows exactly what your customers will see after scanning.'}
+        {stepIndex === 1 && 'Business name shows at the top of every review page.'}
+        {stepIndex === 2 && `Customers rating ${state.threshold}+ stars see public review sites. Below ${state.threshold}, they get a private form that lands in your inbox — never published.`}
+        {stepIndex === 3 && `${state.platforms.length} platform${state.platforms.length === 1 ? '' : 's'} selected. Customers pick one after a high rating.`}
+        {stepIndex === 4 && state.team.length === 0 && 'Skip if you run solo — you can always add the team later.'}
+        {stepIndex === 4 && state.team.length > 0 && `${state.team.length} team member${state.team.length === 1 ? '' : 's'} added. Each gets their own QR.`}
+        {stepIndex === 5 && 'All set. Posters download as a PDF pack — one per team member (or one for the location if you skipped).'}
+      </div>
+    </aside>
+  );
+}
+
+function TweaksPanel({ tweaks, setTweak, open, onClose, onLoadPreset }) {
+  return (
+    <div className={`tweaks-panel ${open ? 'open' : ''}`}>
+      <h3>
+        <span style={{ fontSize: 18 }}>⚙</span> Tweaks
+        <span style={{ marginLeft: 'auto', cursor: 'pointer', color: '#9094a1', fontSize: 22, lineHeight: 1 }} onClick={onClose}>×</span>
+      </h3>
+      <div className="label">Jump to step</div>
+      <div className="row">
+        {STEPS.map((s, i) => (
+          <button key={s.id} className={`chip ${tweaks.stepIndex === i ? 'active' : ''}`} onClick={() => setTweak('stepIndex', i)}>
+            {i}. {s.label}
+          </button>
+        ))}
+      </div>
+      <div className="label">Demo data</div>
+      <div className="row">
+        <button className={`chip ${tweaks.preset === 'blank' ? 'active' : ''}`} onClick={() => onLoadPreset('blank')}>Blank slate</button>
+        <button className={`chip ${tweaks.preset === 'kaya' ? 'active' : ''}`} onClick={() => onLoadPreset('kaya')}>Kaya Sushi (filled)</button>
+      </div>
+    </div>
+  );
+}
+
+function Stage({ children }) {
+  const [scale, setScale] = React.useState(1);
+  React.useEffect(() => {
+    const fit = () => setScale(Math.min(window.innerWidth / 1440, window.innerHeight / 900, 1));
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
+  return <div className="stage"><div className="scaler" style={{ transform: `scale(${scale})` }}>{children}</div></div>;
+}
+
+function App() {
+  const [tweaks, setTweak] = useTweaks();
+  const [panelOpen, setPanelOpen] = React.useState(false);
+  const [state, setState] = React.useState(PRESETS[tweaks.preset] || PRESETS.blank);
+
+  const loadPreset = (id) => {
+    setState(PRESETS[id] || PRESETS.blank);
+    setTweak('preset', id);
+  };
+
+  React.useEffect(() => {
+    const onMsg = e => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === '__activate_edit_mode') setPanelOpen(true);
+      else if (e.data.type === '__deactivate_edit_mode') setPanelOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch {}
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const update = patch => setState(s => ({ ...s, ...patch }));
+  const stepIndex = tweaks.stepIndex;
+  const next = () => setTweak('stepIndex', Math.min(STEPS.length - 1, stepIndex + 1));
+  const back = () => setTweak('stepIndex', Math.max(0, stepIndex - 1));
+  const restart = () => { loadPreset('blank'); setTweak('stepIndex', 0); };
+
+  const { Component } = STEPS[stepIndex];
+
+  return (
+    <>
+      <Stage>
+        <div className="app">
+          <div className="chrome">
+            <div className="dot" style={{ background: '#ff5f57' }}/>
+            <div className="dot" style={{ background: '#febc2e' }}/>
+            <div className="dot" style={{ background: '#28c840' }}/>
+            <div className="url">yep.app / setup</div>
+          </div>
+
+          <div style={{
+            padding: '14px 28px', borderBottom: `1px solid ${T.ink10}`,
+            background: '#fff', display: 'flex', alignItems: 'center', gap: 20,
+          }}>
+            <YepMark size={20}/>
+            <div style={{ flex: 1 }}/>
+            {stepIndex > 0 && stepIndex < STEPS.length - 1 && (
+              <ProgressRail stepIndex={stepIndex} onJump={i => setTweak('stepIndex', i)}/>
+            )}
+            {stepIndex === 0 && (
+              <div style={{ fontSize: 12, color: T.ink60 }}>
+                Have an account? <span style={{ color: T.accent, fontWeight: 500, cursor: 'pointer' }}>Sign in</span>
+              </div>
+            )}
+          </div>
+
+          <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+            <div style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 40, overflowY: 'auto',
+            }}>
+              <Component state={state} update={update} next={next} back={back} onRestart={restart}/>
+            </div>
+            <PreviewPane state={state} stepIndex={stepIndex}/>
+          </div>
+        </div>
+      </Stage>
+      <TweaksPanel tweaks={tweaks} setTweak={setTweak} open={panelOpen} onClose={() => setPanelOpen(false)} onLoadPreset={loadPreset}/>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
