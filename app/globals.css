@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  }
+  body {
+    color: #0e1220;
+    background: #ffffff;
+  }
+  button {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  .yep-card {
+    @apply bg-paper rounded-xl shadow-card border border-ink-10;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-white font-semibold rounded-full px-5 py-3 text-sm hover:bg-accent-dark transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-ink-05 text-ink font-semibold rounded-full px-5 py-3 text-sm hover:bg-ink-10 transition-colors;
+  }
+
+  .btn-ghost {
+    @apply text-ink-60 font-medium text-sm hover:text-ink transition-colors;
+  }
+
+  .input-base {
+    @apply w-full px-4 py-3 rounded-lg border border-ink-20 text-ink text-sm focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all placeholder:text-ink-40;
+  }
+}
