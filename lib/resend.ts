@@ -1,6 +1,10 @@
 import { Resend } from "resend";
 
-export const resend = new Resend(process.env.RESEND_API_KEY!);
+let cached: Resend | null = null;
+function getResend(): Resend {
+  if (!cached) cached = new Resend(process.env.RESEND_API_KEY!);
+  return cached;
+}
 
 interface FeedbackEmailOpts {
   ownerEmail: string;
@@ -29,7 +33,7 @@ export async function sendFeedbackNotification(opts: FeedbackEmailOpts) {
 
   const dashboardUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/feedback/${opts.feedbackId}`;
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: process.env.RESEND_FROM_EMAIL!,
     to: opts.ownerEmail,
     subject: `New ${opts.rating}-star feedback for ${opts.businessName}`,
