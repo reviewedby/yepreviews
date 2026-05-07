@@ -4,35 +4,42 @@ import { NextResponse, type NextRequest } from "next/server";
 const PROTECTED = ["/dashboard", "/feedback", "/team", "/posters", "/settings", "/onboarding"];
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          for (const { name, value } of cookiesToSet) {
-            request.cookies.set(name, value);
-          }
-          response = NextResponse.next({ request });
-          for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
-          }
-        },
-      },
-    }
-  );
-
-  const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
-
   const isProtected = PROTECTED.some((p) => path.startsWith(p));
 
-  if (isProtected && !user) {
+  if (!isProtected) {
+    return NextResponse.next({ request });
+  }
+
+  let response = NextResponse.next({ request });
+
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            for (const { name, value } of cookiesToSet) {
+              request.cookies.set(name, value);
+            }
+            response = NextResponse.next({ request });
+            for (const { name, value, options } of cookiesToSet) {
+              response.cookies.set(name, value, options);
+            }
+          },
+        },
+      }
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+  } catch {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
